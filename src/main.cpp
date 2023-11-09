@@ -37,34 +37,33 @@ std::vector<Solution> solutions;
 float lat_ref, lon_ref;
 
 
-// Function to convert degrees to radians
-float deg2rad(float deg) {
-    return deg * M_PI / 180.0;
+// Function to convert latitude and longitude to Cartesian coordinates (x, y)
+std::pair<float, float> convertXYToLatLong(float x, float y, float phi_ref, float psi_ref) {
+    // Calculate delta psi and delta phi using the reference latitude and longitude in degrees
+    float delta_psi = 111412.84 * cos(phi_ref) - 93.5 * cos(3 * phi_ref) + 0.118 * cos(5 * phi_ref);
+    float delta_phi = 111132.92 - 559.82 * cos(2 * phi_ref) + 1.175 * cos(4 * phi_ref) - 0.0023 * cos(6 * phi_ref);
+
+    // Convert x, y back to latitude (phi) and longitude (psi) using degrees
+    float phi = phi_ref + y / delta_phi;
+    float psi = psi_ref + x / delta_psi;
+
+    return std::make_pair(phi, psi);
 }
 
-// Function to convert latitude and longitude to Cartesian coordinates (x, y)
-std::pair<float, float> convertToXY(float phi, float psi, float phiRef, float psiRef) {
 
-    // Convert degrees to radians
-    float phiRad = deg2rad(phi);
-    float psiRad = deg2rad(psi);
-    float phiRefRad = deg2rad(phiRef);
-    float psiRefRad = deg2rad(psiRef);
 
-    // Calculate deltaPsi
-    float dPsi = 111412.84 * cos(phiRefRad) - 93.5 * cos(3 * phiRefRad) + 0.118 * cos(5 * phiRefRad);
 
-    // Calculate deltaPhi
-    float dPhi = 111132.92 - 559.82 * cos(2 * phiRefRad) + 1.175 * cos(4 * phiRefRad) - 0.0023 * cos(6 * phiRefRad);
+std::pair<float, float> convertLatLongToXY(float phi, float psi, float phiRef, float psiRef) {
+    // Calculate deltaPsi and deltaPhi using the reference latitude and longitude in degrees
+    float dPsi = 111412.84 * cos(phiRef) - 93.5 * cos(3 * phiRef) + 0.118 * cos(5 * phiRef);
+    float dPhi = 111132.92 - 559.82 * cos(2 * phiRef) + 1.175 * cos(4 * phiRef) - 0.0023 * cos(6 * phiRef);
 
     // Convert latitude and longitude to Cartesian coordinates
-    float x = dPsi * (psiRad - psiRefRad);
-    float y = dPhi * (phiRad - phiRefRad);
+    float x = dPsi * (psi - psiRef);
+    float y = dPhi * (phi - phiRef);
 
-    return {x, y};    
+    return {x, y};
 }
-
-
 
 
 void readRailMap(const std::string& filename) {
@@ -85,7 +84,7 @@ void readRailMap(const std::string& filename) {
     nodes.resize(N);
     for (int i = 0; i < N; ++i) {
         file >> nodes[i].id >> nodes[i].lat >> nodes[i].lon;
-        auto [x, y] = convertToXY(nodes[i].lat, nodes[i].lon, lat_ref, lon_ref); // Structured binding
+        auto [x, y] = convertLatLongToXY(nodes[i].lat, nodes[i].lon, lat_ref, lon_ref); // Structured binding
         nodes[i].x = x;
         nodes[i].y = y;
     }
@@ -115,7 +114,7 @@ void readTargets(const std::string& filename) {
 
     for (int i = 0; i < numTargets; ++i) {
         file >> targets[i].id >> targets[i].lat >> targets[i].lon;
-        auto [x, y] = convertToXY(targets[i].lat, targets[i].lon, lat_ref, lon_ref);
+        auto [x, y] = convertLatLongToXY(targets[i].lat, targets[i].lon, lat_ref, lon_ref);
         targets[i].x = x;
         targets[i].y = y;
         
@@ -185,7 +184,7 @@ int main() {
 
 Node node_closest1;
 Node node_closest2;
-std::pair<float, float> solutionPoint;
+std::pair<float, float> solutionClosestPoint;
 
 // Assuming 'targets' is a vector of pairs or a struct with x, y fields
 for (const auto& target : targets) {
@@ -203,16 +202,18 @@ for (const auto& target : targets) {
             minDistance = distance;
             node_closest1 = node1;
             node_closest2 = node2;
-            solutionPoint = point;
+            solutionClosestPoint = convertXYToLatLong(point.first, point.second, lat_ref, lon_ref);
         }
     }
+
+
 
     Solution solution = {
         target.id, 
         node_closest1.id, 
         node_closest2.id, 
-        solutionPoint.first, 
-        solutionPoint.second,
+        solutionClosestPoint.first, 
+        solutionClosestPoint.second,
         minDistance};
 
     solutions.push_back(solution);
@@ -227,8 +228,15 @@ for (const auto& target : targets) {
     }
 
     // Write output to file
-    std::ofstream outFile("outputs/solutions.txt");
-    // Write data
+    std::ofstream outFile("../outputs/solutions.txt");
+    // Write data, fill with all found solutions
+    outFile << "solutions" << " " << solutions.size() <<std::endl;
+
+    for (const auto& solution : solutions) {
+        outFile << solution.target_id << " " << solution.id0 << " " << solution.id1 << " " << solution.lat << " " << solution.lon << " " << solution.distance << std::endl;
+    }
+
+
     outFile.close();
 
     return 0;
