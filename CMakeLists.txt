@@ -11,4 +11,4 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
-add_executable(main src/main.cpp)
+add_executable(main src/main.cpp src/railmap_helpers.cpp)
